@@ -1,21 +1,42 @@
-name: GitHub Actions Demo
-
-on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+name: Win7-noVNC-10Min
+on: workflow_dispatch
 
 jobs:
-  check-system:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: View Hardware Info
+      - name: 1. Cài đặt QEMU và Công cụ mạng
         run: |
-          echo "CPU cores:"
-          nproc
-          echo "Memory status:"
-          free -h
+          sudo apt-get update
+          sudo apt-get install qemu-kvm novnc python3-websockify -y
+          curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared.deb
+
+      - name: 2. Tải Image Windows 7 Rút Gọn
+        run: |
+          # Đây là link mẫu Win7 x86 siêu nhẹ để boot nhanh. 
+          # Lưu ý: Link này có thể thay đổi tùy nguồn cộng đồng.
+          wget -O win7.qcow2 https://app.any.run/images/windows_7_x64.qcow2 || echo "Lỗi tải file"
+
+      - name: 3. Khởi chạy Windows & noVNC
+        run: |
+          # Chạy Win7 với 4 Core / 8GB RAM
+          qemu-system-x86_64 -m 8G -smp 4 -hda win7.qcow2 -vnc :0 -enable-kvm &
+          
+          # Chạy websockify để chuyển đổi VNC sang Web (Port 8080)
+          websockify --web /usr/share/novnc/ 8080 localhost:5900 &
+
+      - name: 4. Mở Port qua Cloudflare và Lấy Link
+        run: |
+          echo "--- ĐANG TẠO ĐƯỜNG TRUYỀN CLOUDFLARE ---"
+          # Mở tunnel cho port 8080 (Giao diện web noVNC)
+          cloudflared tunnel --url http://localhost:8080 &
+          
+          echo "Đợi 15 giây để hệ thống ổn định..."
+          sleep 15
+          echo "CHÚ Ý: Tìm dòng có dạng 'https://xxx-xxx.trycloudflare.com' ở log phía dưới!"
+          
+      - name: 5. Treo máy 10 phút
+        run: |
+          echo "Máy ảo đang chạy. Bạn có 10 phút trước khi tự đóng."
+          sleep 600
