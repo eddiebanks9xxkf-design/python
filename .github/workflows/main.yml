@@ -1,36 +1,50 @@
-name: Win7-Docker-10Min
-on: workflow_dispatch
+name: Windows-10-LTSC-Cloud-PC
+on: workflow_dispatch # Chạy thủ công bằng nút bấm
 
 jobs:
-  build:
+  run-win10:
     runs-on: ubuntu-latest
     steps:
       - name: 1. Cài đặt Docker và Cloudflared
         run: |
           sudo apt-get update
+          # Cài đặt Docker (thường có sẵn, nhưng lệnh này đảm bảo bản mới)
+          sudo apt-get install docker.io -y
+          
+          # Tải và cài đặt Cloudflared để mở tunnel
           curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
           sudo dpkg -i cloudflared.deb
 
-      - name: 2. Chạy Windows 7 qua Docker
+      - name: 2. Chạy Windows 10 LTSC qua Docker
         run: |
-          # Sử dụng image Windows 7 chạy trên Docker (KVM enabled)
-          # Port 8006 là giao diện web noVNC mặc định của image này
-          docker run -d --name windows_7 --device=/dev/kvm --cap-add NET_ADMIN -p 8006:8006 -e VERSION=win7 dockurr/windows
+          # Khởi chạy Docker Container
+          # --device=/dev/kvm: Bật tăng tốc phần cứng (RẤT QUAN TRỌNG)
+          # -p 8006:8006: Port giao diện Web noVNC
+          # -e VERSION=win10_ltsc: Tự động tải và cài bản LTSC
+          # -e RAM=8G: Cấp 8GB RAM cho Windows (Bạn có 16GB tổng)
+          # -e CORES=4: Cấp 4 Core CPU
           
-          echo "Đang khởi tạo Windows (có thể mất 1-2 phút)..."
-
-      - name: 3. Mở Port qua Cloudflare
-        run: |
-          # Forward port 8006 ra ngoài web
-          cloudflared tunnel --url http://localhost:8006 &
+          echo "Đang khởi tạo Container Docker Windows 10 LTSC..."
+          sudo docker run -d --name windows_10 --device=/dev/kvm --cap-add NET_ADMIN -p 8006:8006 -e VERSION=win10_ltsc -e RAM=8G -e CORES=4 -e USERNAME=CloudPC -e PASSWORD=GitHub dockurr/windows
           
-          echo "Đợi 30 giây để lấy Link..."
-          sleep 30
-          echo "----------------------------------------------------"
-          echo "HÃY TÌM LINK .trycloudflare.com Ở DƯỚI ĐÂY:"
-          echo "----------------------------------------------------"
+          echo "Đợi 1 phút để Docker tải dữ liệu ban đầu..."
+          sleep 60
 
-      - name: 4. Treo máy 10 phút
+      - name: 3. Mở Port qua Cloudflare và Lấy Link
         run: |
-          # Giữ workflow chạy trong 600 giây
-          sleep 700
+          echo "--- ĐANG TẠO ĐƯỜNG TRUYỀN CLOUDFLARE ---"
+          # Mở tunnel cho port 8006 (Giao diện web noVNC)
+          cloudflared tunnel --url http://localhost:8006 2>&1 | tee cloudflare.log &
+          
+          echo "Đợi 20 giây để hệ thống ổn định..."
+          sleep 20
+          echo "----------------------------------------------------"
+          echo "DÙNG TRÌNH DUYỆT TRUY CẬP LINK .trycloudflare.com DƯỚI ĐÂY:"
+          echo "----------------------------------------------------"
+          grep -oE "https://[a-zA-Z0-9.-]+\.trycloudflare\.com" cloudflare.log || echo "Chưa tìm thấy link, hãy đợi thêm vài giây trong log chính..."
+
+      - name: 4. Giữ máy chạy 6 tiếng (Tối đa)
+        run: |
+          echo "Máy ảo đang chạy. Bạn có 6 tiếng (21600 giây) trước khi tự đóng."
+          sleep 5000 
+          echo "Hết thời gian. Máy ảo đang được xóa sạch dữ liệu..."
