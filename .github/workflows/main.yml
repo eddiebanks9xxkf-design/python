@@ -1,53 +1,36 @@
-name: Windows-7-Cloud-10Min
+name: Win7-Docker-10Min
 on: workflow_dispatch
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. Cài đặt QEMU và noVNC
+      - name: 1. Cài đặt Docker và Cloudflared
         run: |
           sudo apt-get update
-          sudo apt-get install qemu-kvm novnc python3-websockify -y
-          # Cài đặt Cloudflared
           curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
           sudo dpkg -i cloudflared.deb
 
-      - name: 2. Tải Image Windows (Link dự phòng tốc độ cao)
+      - name: 2. Chạy Windows 7 qua Docker
         run: |
-          # Sử dụng link trực tiếp từ server tin cậy hoặc Tiny Win7
-          # Link này là bản Win7 PE (Preinstallation Environment) cực nhẹ, boot chỉ mất 30s
-          wget -O win7.qcow2 "https://github.com/hktalent/NetSploit/raw/master/resources/win7_lite.qcow2" || \
-          curl -L -o win7.qcow2 "https://app.vagrantup.com/generic/boxes/windows-7/versions/4.3.12/providers/qemu.box"
+          # Sử dụng image Windows 7 chạy trên Docker (KVM enabled)
+          # Port 8006 là giao diện web noVNC mặc định của image này
+          docker run -d --name windows_7 --device=/dev/kvm --cap-add NET_ADMIN -p 8006:8006 -e VERSION=win7 dockurr/windows
           
-          echo "Kiểm tra file đã tải:"
-          ls -lh win7.qcow2
+          echo "Đang khởi tạo Windows (có thể mất 1-2 phút)..."
 
-      - name: 3. Khởi chạy Windows và Cầu nối noVNC
+      - name: 3. Mở Port qua Cloudflare
         run: |
-          # Chạy QEMU với cấu hình 4 Core / 8GB RAM như bạn yêu cầu
-          # Cổng VNC mặc định là 5900
-          sudo qemu-system-x86_64 -m 8G -smp 4 -hda win7.qcow2 -device rtl8139,netdev=n1 -netdev user,id=n1 -vnc :0 -enable-kvm &
+          # Forward port 8006 ra ngoài web
+          cloudflared tunnel --url http://localhost:8006 &
           
-          # Chạy websockify để biến VNC thành giao diện Web trên port 8080
-          websockify --web /usr/share/novnc/ 8080 localhost:5900 &
-
-      - name: 4. Mở Port qua Cloudflare Tunnel
-        run: |
-          echo "--- ĐANG KHỞI TẠO ĐƯỜNG TRUYỀN ---"
-          # Tạo tunnel cho port 8080
-          cloudflared tunnel --url http://localhost:8080 &
-          
-          echo "Đợi 20 giây để lấy Link..."
-          sleep 20
-          # Lệnh này sẽ lọc ra link công khai từ log của cloudflared
+          echo "Đợi 30 giây để lấy Link..."
+          sleep 30
           echo "----------------------------------------------------"
-          echo "TRUY CẬP ĐỊA CHỈ NÀY ĐỂ DÙNG WINDOWS:"
+          echo "HÃY TÌM LINK .trycloudflare.com Ở DƯỚI ĐÂY:"
           echo "----------------------------------------------------"
 
-      - name: 5. Giữ máy chạy 10 phút
+      - name: 4. Treo máy 10 phút
         run: |
-          # Lệnh này để giữ máy ảo không bị tắt ngay lập tức
-          # Bạn có 600 giây (10 phút)
-          sleep 600
-          echo "Hết thời gian. Máy ảo đang được xóa sạch dữ liệu..."
+          # Giữ workflow chạy trong 600 giây
+          sleep 400
