@@ -1,6 +1,21 @@
-- name: Check Hardware
-  run: |
-    echo "CPU Info:"
-    nproc
-    echo "Memory Info:"
-    free -h
+name: GitHub Actions Demo
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  check-system:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: View Hardware Info
+        run: |
+          echo "CPU cores:"
+          nproc
+          echo "Memory status:"
+          free -h
