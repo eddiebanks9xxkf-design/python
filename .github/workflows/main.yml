@@ -33,4 +33,4 @@ jobs:
       - name: 4. Treo máy 10 phút
         run: |
           # Giữ workflow chạy trong 600 giây
-          sleep 400
+          sleep 700
